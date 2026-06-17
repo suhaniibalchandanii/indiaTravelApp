@@ -170,6 +170,11 @@ const stopsList = [
   ['SRI_APT', 'Srinagar Airport (SXR)', 34.0837, 75.3841, 'flight', 'Srinagar'],
   ['SRI_RLY', 'Srinagar Railway Station', 34.0836, 75.5702, 'train', 'Srinagar'],
   ['SRI_LM_DAL', 'Dal Lake, Srinagar', 34.1526, 75.5747, 'road', 'Srinagar'],
+
+  // AGARTALA / TRIPURA (NEW)
+  ['IXA_APT', 'Agartala Airport (IXA)', 23.8868, 91.2400, 'flight', 'Agartala'],
+  ['IXA_RLY', 'Agartala Railway Station', 23.8375, 91.2766, 'train', 'Agartala'],
+  ['IXA_LM_CITY', 'Agartala City Center', 23.8355, 91.2798, 'road', 'Agartala'],
   
   // HYDERABAD - TIER 2 CITIES (NEW)
   ['HYD_APT', 'Rajiv Gandhi International Airport (HYD)', 17.3732, 78.4697, 'flight', 'Hyderabad'],
@@ -432,6 +437,12 @@ flightPairs.forEach(([orig, dest, duration, baseCost, co2]) => {
     });
   });
 });
+
+// --- NEW FLIGHT PAIRS: DELHI <-> AGARTALA (TRIPURA) ---
+flightPairs.push(
+  ['DEL_APT', 'IXA_APT', 160, 5200, 140.0],
+  ['IXA_APT', 'DEL_APT', 160, 5200, 140.0]
+);
 
 // --- TRAINS ---
 // NDLS <-> MMCT (Rajdhani Express)
@@ -728,6 +739,17 @@ for (let hour = 5; hour <= 21; hour += 3) {
 
 schedulesList.forEach(sch => insertSchedule.run(...sch));
 
+// --- Manually add Delhi <-> Agartala flight schedules (if not generated earlier) ---
+// These provide direct flight options for the solver to use when Tripura is requested.
+const manualAgartalaFlights = [
+  ['INDIGO_AIR', 'DEL_APT', 'IXA_APT', '09:00', '11:40', 160, 5200, 140.0],
+  ['INDIGO_AIR', 'IXA_APT', 'DEL_APT', '13:00', '15:40', 160, 5200, 140.0],
+  ['AIRINDIA_AIR', 'DEL_APT', 'IXA_APT', '14:00', '16:40', 160, 6000, 140.0],
+  ['VISTARA_AIR', 'DEL_APT', 'IXA_APT', '19:00', '21:40', 160, 5800, 140.0]
+];
+
+manualAgartalaFlights.forEach(f => insertSchedule.run(...f));
+
 
 // 4. POPULATE TRANSFERS (E.g. walking between adjacent Metro stations and Railway terminals)
 const insertTransfer = db.prepare(`
@@ -817,6 +839,15 @@ const transfersList = [
   ['SRI_RLY', 'SRI_APT', 25, 400],
   ['SRI_RLY', 'SRI_LM_DAL', 12, 0],
   ['SRI_LM_DAL', 'SRI_RLY', 12, 0],
+
+  // AGARTALA TRANSFERS
+  // Agartala Airport <-> Railway (Cab 20 mins, ₹300)
+  ['IXA_APT', 'IXA_RLY', 20, 300],
+  ['IXA_RLY', 'IXA_APT', 20, 300],
+  ['IXA_RLY', 'IXA_LM_CITY', 8, 0],
+  ['IXA_LM_CITY', 'IXA_RLY', 8, 0],
+  ['IXA_APT', 'IXA_LM_CITY', 25, 350],
+  ['IXA_LM_CITY', 'IXA_APT', 25, 350],
   
   // Hyderabad Airport <-> Railway (Cab 20 mins, ₹350)
   ['HYD_APT', 'HYD_RLY', 20, 350],

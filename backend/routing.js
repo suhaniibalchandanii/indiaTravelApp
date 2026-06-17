@@ -17,10 +17,15 @@ export function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Convert "HH:MM" string to minutes from midnight
+// Convert "HH:MM" or "HH:MM+N" string to minutes from midnight, handling day rollover
 export function timeToMin(timeStr) {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
+  if (!timeStr || typeof timeStr !== 'string') {
+    return 0;
+  }
+  const [timePart, dayPart] = timeStr.split('+');
+  const [h, m] = timePart.split(':').map(Number);
+  const days = dayPart ? Number(dayPart) : 0;
+  return (h * 60 + m) + (days * 1440);
 }
 
 // Convert minutes from midnight back to "HH:MM" (handles day rollover)
@@ -49,6 +54,21 @@ let allRoutes = {};
 let transfers = [];
 let schedules = [];
 
+const MODE_HUB_THRESHOLDS = {
+  flight: 250,
+  train: 250,
+  bus: 120,
+  metro: 120,
+  ferry: 180
+};
+
+const ROAD_ACCESS_OPTIONS = {
+  walk: { speed: 5, costPerKm: 0, baseWait: 0, co2PerKm: 0.0 },
+  auto: { speed: 35, costPerKm: 10, baseWait: 3, co2PerKm: 0.08 },
+  cab: { speed: 50, costPerKm: 15, baseWait: 5, co2PerKm: 0.12 },
+  car: { speed: 60, costPerKm: 12, baseWait: 0, co2PerKm: 0.15 }
+};
+
 function loadGraphData() {
   // Fetch stops
   const stopsQuery = db.prepare('SELECT * FROM stops');
@@ -69,6 +89,59 @@ function loadGraphData() {
   // Fetch schedules
   const schedulesQuery = db.prepare('SELECT * FROM schedules');
   schedules = schedulesQuery.all();
+}
+
+function getStopsByMode(mode) {
+  return allStops.filter(stop => stop.type === mode);
+}
+
+function findNearestHubs(coord, mode, maxResults = 4) {
+  return getStopsByMode(mode)
+    .map(stop => ({ stop, dist: haversineDistance(coord.lat, coord.lon, stop.lat, stop.lon) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, maxResults);
+}
+
+function buildAnchors(coord, excludedModes) {
+  const anchorModes = ['flight', 'train', 'bus', 'metro', 'ferry'];
+  const anchors = [];
+
+  anchorModes.forEach(mode => {
+    if (excludedModes.includes(mode)) return;
+    const candidateStops = findNearestHubs(coord, mode, 3);
+    if (candidateStops.length === 0) return;
+
+    const threshold = MODE_HUB_THRESHOLDS[mode] || 120;
+    const nearby = candidateStops.filter(c => c.dist <= threshold);
+    if (nearby.length > 0) {
+      nearby.forEach(c => anchors.push({ ...c, mode }));
+      return;
+    }
+
+    // If there are no nearby stops of this mode, still include the closest hub to ensure remote access.
+    anchors.push({ ...candidateStops[0], mode, isRemoteHub: true });
+  });
+
+  return anchors;
+}
+
+function getAccessModesForDistance(dist) {
+  if (dist <= 3) {
+    return ['walk', 'auto', 'cab'];
+  }
+  if (dist <= 25) {
+    return ['auto', 'cab'];
+  }
+  return ['cab'];
+}
+
+function calculateRoadAccessEdge(distanceKm, accessMode) {
+  const settings = ROAD_ACCESS_OPTIONS[accessMode] || ROAD_ACCESS_OPTIONS.cab;
+  const travelMins = (distanceKm / settings.speed) * 60;
+  const duration = travelMins + settings.baseWait;
+  const cost = distanceKm * settings.costPerKm;
+  const co2 = distanceKm * settings.co2PerKm;
+  return { duration, cost, co2 };
 }
 
 // Initialize loading
@@ -95,17 +168,20 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
   let wCost = 0.05; // 1 min = ₹20
   let wCo2 = 0.1;   // 1 min = 10kg CO2
   let wTransfer = 15; // penalty in minutes per transfer
+  let wRemoteHub = 10; // penalty for remote hub diversion
 
   if (preference === 'cheapest') {
     wTime = 0.05;
     wCost = 1.0;
     wCo2 = 0.01;
     wTransfer = 5;
+    wRemoteHub = 5;
   } else if (preference === 'eco') {
     wTime = 0.2;
     wCost = 0.02;
     wCo2 = 5.0; // prioritize low carbon footprints
     wTransfer = 10;
+    wRemoteHub = 5;
   }
 
   // 2. Set up virtual start & end nodes
@@ -115,6 +191,8 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
   // Find nearby stops (within 80 km) for first/last mile
   const nearbyStartStops = [];
   const nearbyEndStops = [];
+  const remoteStartAnchors = buildAnchors(startCoord, excludedModes);
+  const remoteEndAnchors = buildAnchors(endCoord, excludedModes);
 
   allStops.forEach(stop => {
     // If stop's mode is excluded, skip it
@@ -122,18 +200,18 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
 
     const distFromStart = haversineDistance(startCoord.lat, startCoord.lon, stop.lat, stop.lon);
     if (distFromStart <= 80) {
-      nearbyStartStops.push({ stop, dist: distFromStart });
+      nearbyStartStops.push({ stop, dist: distFromStart, mode: stop.type });
     }
 
     const distFromEnd = haversineDistance(endCoord.lat, endCoord.lon, stop.lat, stop.lon);
     if (distFromEnd <= 80) {
-      nearbyEndStops.push({ stop, dist: distFromEnd });
+      nearbyEndStops.push({ stop, dist: distFromEnd, mode: stop.type });
     }
   });
 
   // Calculate a baseline road route directly from Start to End
   const directDist = haversineDistance(startCoord.lat, startCoord.lon, endCoord.lat, endCoord.lon);
-  const directRoadOption = calculateRoadEdge(directDist, 'cab'); // standard cab edge
+  const directRoadOption = calculateRoadAccessEdge(directDist, 'cab'); // standard cab edge
 
   // 3. Dijkstra State Queue and Tables
   // Priority Queue: array sorted by score (ascending)
@@ -178,10 +256,10 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
 
     // Case A: Current is START
     if (curr.nodeId === START_ID) {
-      // 1. Direct road route to END
+      // 1. Direct road route to END only as a fallback
       if (!excludedModes.includes('road')) {
-        const road = calculateRoadEdge(directDist, 'cab');
-        const nextScore = curr.score + (road.duration * wTime) + (road.cost * wCost) + (road.co2 * wCo2);
+        const road = calculateRoadAccessEdge(directDist, 'cab');
+        const nextScore = curr.score + (road.duration * wTime) + (road.cost * wCost) + (road.co2 * wCo2) + 30;
         const nextState = {
           nodeId: END_ID,
           score: nextScore,
@@ -196,30 +274,40 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
         queue.push(nextState);
       }
 
-      // 2. Connect to all nearby transit stops
-      nearbyStartStops.forEach(({ stop, dist }) => {
-        // We can go by Walk (if < 3 km) or Cab or Auto-rickshaw
-        const modes = [];
-        if (dist <= 3 && !excludedModes.includes('road')) {
-          modes.push({ name: 'Walk', ...calculateRoadEdge(dist, 'walk') });
+      // 2. Connect to all nearby transit stops and remote hubs
+      const nearbyStopsByMode = {};
+      nearbyStartStops.forEach(({ stop, dist, mode }) => {
+        if (!nearbyStopsByMode[mode]) {
+          nearbyStopsByMode[mode] = [];
         }
-        if (!excludedModes.includes('road')) {
-          modes.push({ name: 'Cab', ...calculateRoadEdge(dist, 'cab') });
-          modes.push({ name: 'Auto', ...calculateRoadEdge(dist, 'auto') });
-        }
+        nearbyStopsByMode[mode].push({ stop, dist });
+      });
 
-        modes.forEach(mode => {
-          const nextScore = curr.score + (mode.duration * wTime) + (mode.cost * wCost) + (mode.co2 * wCo2);
+      const startAnchors = [...nearbyStartStops];
+      remoteStartAnchors.forEach(anchor => {
+        if (!nearbyStopsByMode[anchor.mode] || nearbyStopsByMode[anchor.mode].every(item => item.stop.id !== anchor.stop.id)) {
+          startAnchors.push(anchor);
+        }
+      });
+
+      startAnchors.forEach(({ stop, dist, mode, isRemoteHub }) => {
+        if (excludedModes.includes(mode)) return;
+        const accessModes = getAccessModesForDistance(dist);
+        accessModes.forEach(accessMode => {
+          const accessEdge = calculateRoadAccessEdge(dist, accessMode);
+          const remotePenalty = isRemoteHub ? wRemoteHub * 3 : 0;
+          const nextScore = curr.score + (accessEdge.duration * wTime) + (accessEdge.cost * wCost) + (accessEdge.co2 * wCo2) + remotePenalty;
+
           const nextState = {
             nodeId: stop.id,
             score: nextScore,
-            time: curr.time + mode.duration,
-            cost: curr.cost + mode.cost,
-            co2: curr.co2 + mode.co2,
+            time: curr.time + accessEdge.duration,
+            cost: curr.cost + accessEdge.cost,
+            co2: curr.co2 + accessEdge.co2,
             transfers: 0,
             parent: curr,
             edgeType: 'road',
-            edgeDetail: `${mode.name} (${dist.toFixed(1)} km) to ${stop.name}`
+            edgeDetail: `${accessMode.charAt(0).toUpperCase() + accessMode.slice(1)} access (${dist.toFixed(1)} km) to ${stop.name}`
           };
 
           const prevDist = distMap.get(stop.id);
@@ -305,19 +393,27 @@ export function solveDijkstra(startCoord, endCoord, startTimeStr, preference = '
     });
 
     // 3. Last mile connection from current stop to the final virtual END
-    const endStopMatch = nearbyEndStops.find(es => es.stop.id === curr.nodeId);
+    const endAnchors = [...nearbyEndStops];
+    remoteEndAnchors.forEach(anchor => {
+      if (!endAnchors.some(item => item.stop.id === anchor.stop.id)) {
+        endAnchors.push(anchor);
+      }
+    });
+
+    const endStopMatch = endAnchors.find(es => es.stop.id === curr.nodeId);
     if (endStopMatch && !excludedModes.includes('road')) {
-      const { dist } = endStopMatch;
+      const { dist, isRemoteHub } = endStopMatch;
       const modes = [
-        { name: 'Cab', ...calculateRoadEdge(dist, 'cab') },
-        { name: 'Auto', ...calculateRoadEdge(dist, 'auto') }
+        { name: 'Cab', ...calculateRoadAccessEdge(dist, 'cab') },
+        { name: 'Auto', ...calculateRoadAccessEdge(dist, 'auto') }
       ];
       if (dist <= 3) {
-        modes.push({ name: 'Walk', ...calculateRoadEdge(dist, 'walk') });
+        modes.push({ name: 'Walk', ...calculateRoadAccessEdge(dist, 'walk') });
       }
 
       modes.forEach(mode => {
-        const nextScore = curr.score + (mode.duration * wTime) + (mode.cost * wCost) + (mode.co2 * wCo2);
+        const remotePenalty = isRemoteHub ? wRemoteHub * 2 : 0;
+        const nextScore = curr.score + (mode.duration * wTime) + (mode.cost * wCost) + (mode.co2 * wCo2) + remotePenalty;
         const nextState = {
           nodeId: END_ID,
           score: nextScore,
