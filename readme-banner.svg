@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="560" viewBox="0 0 1440 560" role="img" aria-labelledby="title desc">
+  <title id="title">India Transit Planner</title>
+  <desc id="desc">A multimodal route-planning system for travel across India</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset=".52" stop-color="#0b1728"/>
+      <stop offset="1" stop-color="#111c35"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#6366f1" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#10b981"/>
+      <stop offset=".28" stop-color="#eab308"/>
+      <stop offset=".55" stop-color="#ef4444"/>
+      <stop offset=".78" stop-color="#06b6d4"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="560" rx="34" fill="url(#bg)"/>
+  <circle cx="1165" cy="160" r="390" fill="url(#glow)"/>
+  <circle cx="180" cy="570" r="290" fill="url(#glow)" opacity=".45"/>
+
+  <g opacity=".14" stroke="#94a3b8" stroke-width="1">
+    <path d="M0 90H1440M0 180H1440M0 270H1440M0 360H1440M0 450H1440"/>
+    <path d="M180 0V560M360 0V560M540 0V560M720 0V560M900 0V560M1080 0V560M1260 0V560"/>
+  </g>
+
+  <g transform="translate(100 70)">
+    <rect width="265" height="42" rx="21" fill="#6366f1" fill-opacity=".16" stroke="#818cf8" stroke-opacity=".52"/>
+    <text x="132.5" y="28" text-anchor="middle" fill="#c7d2fe" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="1.6">MULTIMODAL ROUTING</text>
+  </g>
+
+  <text x="96" y="230" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="80" font-weight="800" letter-spacing="-4">INDIA TRANSIT</text>
+  <text x="96" y="316" fill="#a5b4fc" font-family="Inter, Arial, sans-serif" font-size="80" font-weight="800" letter-spacing="-4">PLANNER</text>
+  <text x="100" y="378" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="25">Compare time, fare, transfers and CO₂ across every journey.</text>
+
+  <g transform="translate(100 430)" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700">
+    <rect width="128" height="50" rx="12" fill="#06b6d4" fill-opacity=".14" stroke="#06b6d4" stroke-opacity=".48"/>
+    <text x="64" y="31" text-anchor="middle" fill="#67e8f9">FLIGHT</text>
+    <rect x="142" width="118" height="50" rx="12" fill="#ef4444" fill-opacity=".14" stroke="#ef4444" stroke-opacity=".48"/>
+    <text x="201" y="31" text-anchor="middle" fill="#fca5a5">TRAIN</text>
+    <rect x="274" width="118" height="50" rx="12" fill="#eab308" fill-opacity=".14" stroke="#eab308" stroke-opacity=".48"/>
+    <text x="333" y="31" text-anchor="middle" fill="#fde047">METRO</text>
+    <rect x="406" width="100" height="50" rx="12" fill="#10b981" fill-opacity=".14" stroke="#10b981" stroke-opacity=".48"/>
+    <text x="456" y="31" text-anchor="middle" fill="#6ee7b7">BUS</text>
+    <rect x="520" width="104" height="50" rx="12" fill="#8b5cf6" fill-opacity=".14" stroke="#8b5cf6" stroke-opacity=".48"/>
+    <text x="572" y="31" text-anchor="middle" fill="#c4b5fd">ROAD</text>
+  </g>
+
+  <g transform="translate(935 92)">
+    <path d="M34 335C100 300 120 208 193 225S292 313 358 258" fill="none" stroke="url(#line)" stroke-width="9" stroke-linecap="round"/>
+    <path d="M34 335C100 300 120 208 193 225S292 313 358 258" fill="none" stroke="#fff" stroke-opacity=".24" stroke-width="2" stroke-dasharray="7 10"/>
+    <g>
+      <circle cx="34" cy="335" r="17" fill="#10b981" stroke="#ecfdf5" stroke-width="5"/>
+      <circle cx="193" cy="225" r="14" fill="#ef4444" stroke="#fee2e2" stroke-width="4"/>
+      <circle cx="358" cy="258" r="17" fill="#8b5cf6" stroke="#ede9fe" stroke-width="5"/>
+    </g>
+    <path d="M160 160c22-47 59-77 108-90 15 46 12 86-9 121-21 35-55 57-101 66-10-36-9-68 2-97Z" fill="#13243d" stroke="#64748b" stroke-opacity=".65" stroke-width="2"/>
+    <circle cx="250" cy="105" r="5" fill="#06b6d4"/>
+    <circle cx="196" cy="169" r="4" fill="#eab308"/>
+    <circle cx="287" cy="173" r="4" fill="#10b981"/>
+  </g>
+</svg>
