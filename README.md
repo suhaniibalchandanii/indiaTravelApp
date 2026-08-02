@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/readme-banner.svg" alt="India Transit Planner - multimodal routing across India" width="100%">
+<img src="readme-banner.svg" alt="India Transit Planner - multimodal routing across India" width="100%">
 
 <br>
 
